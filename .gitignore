@@ -1,0 +1,16 @@
+# Dependencias (se reinstalan con el gestor de paquetes)
+node_modules/
+
+# Resultados de compilación
+dist/
+build/
+
+# Variables de entorno: NUNCA al repo
+.env
+.env.*
+!.env.example
+
+# Logs y archivos del sistema
+*.log
+.DS_Store
+Thumbs.db
