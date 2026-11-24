@@ -1,16 +1,7 @@
 import { z } from "zod";
 
-import { AppRole } from "./app-role.js";
-
-/** Who is calling, as the access token says: what a guarded route gets. */
-export interface HubUser {
-  id: string;
-  email: string;
-  name: string | null;
-  isHubAdmin: boolean;
-  /** The user's role in each app they can use (appId → role). */
-  apps: Record<string, AppRole>;
-}
+import { AppRole } from "../types/app-role.js";
+import type { HubUser } from "../types/hub-user.js";
 
 // The claims auth-service signs (§5.2 of the architecture), checked at
 // runtime: a valid signature says who wrote the token, the schema says it

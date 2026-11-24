@@ -20,10 +20,10 @@ import {
 } from "jose";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
+import { CurrentUser } from "../decorators/current-user.decorator.js";
+import { NestAuthModule } from "../nest-auth.module.js";
+import type { HubUser } from "../types/hub-user.js";
 import { AccessTokenGuard } from "./access-token.guard.js";
-import { CurrentUser } from "./current-user.decorator.js";
-import type { HubUser } from "./hub-user.js";
-import { NestAuthModule } from "./nest-auth.module.js";
 
 const ISSUER = "hub-auth";
 const KID = "test-key";

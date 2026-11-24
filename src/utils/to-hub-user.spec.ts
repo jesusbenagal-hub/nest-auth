@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { toHubUser } from "./hub-user.js";
+import { toHubUser } from "./to-hub-user.js";
 
 // A payload as auth-service signs it (jose adds iss, iat and exp).
 const payload = {

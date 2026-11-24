@@ -96,6 +96,14 @@ export default defineConfig(
         "error",
         { "{src,test}/**/": "KEBAB_CASE" },
       ],
+      // Each Nest piece in the folder of its kind (docs/convenciones-backend.md).
+      "check-file/folder-match-with-fex": [
+        "error",
+        {
+          "*.guard.{ts,spec.ts}": "**/guards/",
+          "*.decorator.{ts,spec.ts}": "**/decorators/",
+        },
+      ],
       "@typescript-eslint/naming-convention": [
         "error",
         { selector: "default", format: ["camelCase"] },

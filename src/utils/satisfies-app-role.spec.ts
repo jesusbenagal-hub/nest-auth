@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { AppRole, satisfiesAppRole } from "./app-role.js";
+import { AppRole } from "../types/app-role.js";
+import { satisfiesAppRole } from "./satisfies-app-role.js";
 
 describe("satisfiesAppRole", () => {
   it.each([

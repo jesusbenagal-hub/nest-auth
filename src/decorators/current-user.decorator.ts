@@ -1,7 +1,7 @@
 import { createParamDecorator, type ExecutionContext } from "@nestjs/common";
 
-import type { AuthenticatedRequest } from "./access-token.guard.js";
-import type { HubUser } from "./hub-user.js";
+import type { AuthenticatedRequest } from "../types/authenticated-request.js";
+import type { HubUser } from "../types/hub-user.js";
 
 /**
  * The user of a guarded route, as a parameter: `@CurrentUser() user: HubUser`.

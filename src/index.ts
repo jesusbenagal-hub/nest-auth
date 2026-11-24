@@ -1,8 +1,10 @@
 // The public API of @jesusbenagal-hub/nest-auth: only what is exported here
 // exists for the APIs that install the package.
-export { AccessTokenGuard } from "./access-token.guard.js";
-export { AppRole, satisfiesAppRole } from "./app-role.js";
-export { CurrentUser } from "./current-user.decorator.js";
-export { type HubUser, toHubUser } from "./hub-user.js";
+export { CurrentUser } from "./decorators/current-user.decorator.js";
+export { AccessTokenGuard } from "./guards/access-token.guard.js";
 export { NestAuthModule } from "./nest-auth.module.js";
-export type { NestAuthModuleOptions } from "./nest-auth.module-definition.js";
+export { AppRole } from "./types/app-role.js";
+export type { HubUser } from "./types/hub-user.js";
+export type { NestAuthModuleOptions } from "./types/nest-auth-module-options.js";
+export { satisfiesAppRole } from "./utils/satisfies-app-role.js";
+export { toHubUser } from "./utils/to-hub-user.js";

@@ -12,21 +12,10 @@ import {
   jwtVerify,
 } from "jose";
 
-import { type HubUser, toHubUser } from "./hub-user.js";
-import {
-  NEST_AUTH_OPTIONS,
-  type NestAuthModuleOptions,
-} from "./nest-auth.module-definition.js";
-
-/**
- * The part of a request the guard uses. Not Fastify's type: the package
- * works with any Nest platform, and needs only the header and a place for
- * the user.
- */
-export interface AuthenticatedRequest {
-  headers: Record<string, string | string[] | undefined>;
-  user?: HubUser;
-}
+import { NEST_AUTH_OPTIONS } from "../nest-auth.module-definition.js";
+import type { AuthenticatedRequest } from "../types/authenticated-request.js";
+import type { NestAuthModuleOptions } from "../types/nest-auth-module-options.js";
+import { toHubUser } from "../utils/to-hub-user.js";
 
 /** The token of an `Authorization: Bearer <token>` header, if there is one. */
 function getBearerToken(request: AuthenticatedRequest): string | undefined {
