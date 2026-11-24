@@ -10,4 +10,9 @@ export interface NestAuthModuleOptions {
    * its own key set, already in memory.
    */
   jwks: URL | JSONWebKeySet;
+  /**
+   * The app this API serves ("lista-compra"): @RequireAppRole() checks the
+   * user's role in it. auth-service, which belongs to no app, leaves it out.
+   */
+  appId?: string;
 }

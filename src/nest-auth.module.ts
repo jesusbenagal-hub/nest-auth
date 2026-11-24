@@ -1,18 +1,22 @@
-import { Global, Module } from "@nestjs/common";
+import { Module } from "@nestjs/common";
+import { APP_GUARD } from "@nestjs/core";
 
-import {
-  ConfigurableNestAuthModule,
-  NEST_AUTH_OPTIONS,
-} from "./nest-auth.module-definition.js";
+import { AccessTokenGuard } from "./guards/access-token.guard.js";
+import { AppRoleGuard } from "./guards/app-role.guard.js";
+import { ConfigurableNestAuthModule } from "./nest-auth.module-definition.js";
 
 /**
  * Imported once, in the AppModule of each API:
- * `NestAuthModule.forRoot({ issuer, jwks })`, or `forRootAsync` when the
- * options come from another provider (ConfigService, SigningKeyService).
+ * `NestAuthModule.forRoot({ issuer, jwks, appId })`, or `forRootAsync` when
+ * the options come from another provider (ConfigService, SigningKeyService).
  *
- * Global, because AccessTokenGuard is used from the controllers of every
- * module, and Nest resolves its dependencies (the options) there.
+ * It protects every route of the API: its guards are global (APP_GUARD), so
+ * a route nobody marked is closed, not open. Nest runs them in this order.
  */
-@Global()
-@Module({ exports: [NEST_AUTH_OPTIONS] })
+@Module({
+  providers: [
+    { provide: APP_GUARD, useClass: AccessTokenGuard },
+    { provide: APP_GUARD, useClass: AppRoleGuard },
+  ],
+})
 export class NestAuthModule extends ConfigurableNestAuthModule {}

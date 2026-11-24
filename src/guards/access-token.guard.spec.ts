@@ -1,110 +1,67 @@
 import { createServer, type Server } from "node:http";
 
-import {
-  Controller,
-  Get,
-  type ModuleMetadata,
-  UseGuards,
-} from "@nestjs/common";
-import {
-  FastifyAdapter,
-  type NestFastifyApplication,
-} from "@nestjs/platform-fastify";
-import { Test } from "@nestjs/testing";
-import {
-  exportJWK,
-  generateKeyPair,
-  type JSONWebKeySet,
-  type JWTPayload,
-  SignJWT,
-} from "jose";
+import { Controller, Get } from "@nestjs/common";
+import type { NestFastifyApplication } from "@nestjs/platform-fastify";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
+import { createTestApp } from "../../test/create-test-app.js";
+import {
+  createTestSigningKey,
+  TEST_ISSUER,
+  type TestSigningKey,
+} from "../../test/create-test-signing-key.js";
 import { CurrentUser } from "../decorators/current-user.decorator.js";
+import { Public } from "../decorators/public.decorator.js";
 import { NestAuthModule } from "../nest-auth.module.js";
 import type { HubUser } from "../types/hub-user.js";
-import { AccessTokenGuard } from "./access-token.guard.js";
 
-const ISSUER = "hub-auth";
-const KID = "test-key";
-
-// A route like the ones the APIs will have.
+// Routes like the ones an API has. None says it is protected: the guard is
+// global, so they all are, but the @Public() ones.
 @Controller("me")
-@UseGuards(AccessTokenGuard)
 class MeController {
   @Get()
   getMe(@CurrentUser() user: HubUser): HubUser {
     return user;
   }
+
+  @Get("public")
+  @Public()
+  getPublic(): string {
+    return "ok";
+  }
 }
 
-const claims = {
-  email: "persona@example.com",
-  name: "Persona",
-  hub_admin: false,
-  apps: { gastos: "editor" },
-};
-
-let signingKey: CryptoKey;
-let jwks: JSONWebKeySet;
-
-beforeAll(async () => {
-  const { privateKey, publicKey } = await generateKeyPair("ES256");
-  signingKey = privateKey;
-  jwks = {
-    keys: [{ ...(await exportJWK(publicKey)), kid: KID, alg: "ES256" }],
-  };
-});
-
-/** A token as auth-service signs it; each test changes what it needs. */
-function signToken({
-  key = signingKey,
-  issuer = ISSUER,
-  expiresAt = "10m",
-  payload = claims,
-}: {
-  key?: CryptoKey;
-  issuer?: string;
-  expiresAt?: string;
-  payload?: JWTPayload;
-} = {}): Promise<string> {
-  return new SignJWT(payload)
-    .setProtectedHeader({ alg: "ES256", kid: KID })
-    .setIssuer(issuer)
-    .setSubject("user-1")
-    .setIssuedAt()
-    .setExpirationTime(expiresAt)
-    .sign(key);
+@Controller("health")
+@Public()
+class HealthController {
+  @Get()
+  check(): string {
+    return "ok";
+  }
 }
 
-async function createApp(
-  authModule: NonNullable<ModuleMetadata["imports"]>[number],
-): Promise<NestFastifyApplication> {
-  const moduleRef = await Test.createTestingModule({
-    imports: [authModule],
-    controllers: [MeController],
-  }).compile();
-  const app = moduleRef.createNestApplication<NestFastifyApplication>(
-    new FastifyAdapter(),
-  );
-  await app.init();
-  await app.getHttpAdapter().getInstance().ready();
-  return app;
-}
-
-function getMe(app: NestFastifyApplication, token?: string) {
+function get(app: NestFastifyApplication, url: string, token?: string) {
   return app.inject({
     method: "GET",
-    url: "/me",
+    url,
     headers: token === undefined ? {} : { authorization: `Bearer ${token}` },
   });
 }
+
+let key: TestSigningKey;
+
+beforeAll(async () => {
+  key = await createTestSigningKey();
+});
 
 describe("AccessTokenGuard with a key set in memory", () => {
   let app: NestFastifyApplication;
 
   beforeAll(async () => {
-    app = await createApp(NestAuthModule.forRoot({ issuer: ISSUER, jwks }));
+    app = await createTestApp(
+      NestAuthModule.forRoot({ issuer: TEST_ISSUER, jwks: key.jwks }),
+      [MeController, HealthController],
+    );
   });
 
   afterAll(async () => {
@@ -112,7 +69,11 @@ describe("AccessTokenGuard with a key set in memory", () => {
   });
 
   it("lets a valid token through and gives the route its user", async () => {
-    const response = await getMe(app, await signToken());
+    const token = await key.signToken({
+      claims: { apps: { gastos: "editor" } },
+    });
+
+    const response = await get(app, "/me", token);
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({
@@ -124,39 +85,51 @@ describe("AccessTokenGuard with a key set in memory", () => {
     });
   });
 
-  it("answers 401 without a token", async () => {
-    const response = await getMe(app);
+  it("answers 401 without a token on a route nobody marked", async () => {
+    const response = await get(app, "/me");
 
     expect(response.statusCode).toBe(401);
     expect(response.json()).toMatchObject({ message: "Missing access token" });
   });
 
-  it("answers 401 to a token signed with another key", async () => {
-    const { privateKey } = await generateKeyPair("ES256");
+  it.each(["/me/public", "/health"])(
+    "lets %s through without a token, because it is @Public()",
+    async (url) => {
+      const response = await get(app, url);
 
-    const response = await getMe(app, await signToken({ key: privateKey }));
+      expect(response.statusCode).toBe(200);
+    },
+  );
+
+  it("answers 401 to a token signed with another key", async () => {
+    const otherKey = await createTestSigningKey();
+
+    const response = await get(app, "/me", await otherKey.signToken());
 
     expect(response.statusCode).toBe(401);
     expect(response.json()).toMatchObject({ message: "Invalid access token" });
   });
 
   it("answers 401 to an expired token", async () => {
-    const response = await getMe(
-      app,
-      await signToken({ expiresAt: "1 minute ago" }),
-    );
+    const token = await key.signToken({ expiresAt: "1 minute ago" });
+
+    const response = await get(app, "/me", token);
 
     expect(response.statusCode).toBe(401);
   });
 
   it("answers 401 to a token from another issuer", async () => {
-    const response = await getMe(app, await signToken({ issuer: "other" }));
+    const token = await key.signToken({ issuer: "other" });
+
+    const response = await get(app, "/me", token);
 
     expect(response.statusCode).toBe(401);
   });
 
   it("answers 401 to a token without the hub's claims", async () => {
-    const response = await getMe(app, await signToken({ payload: {} }));
+    const token = await key.signToken({ claims: { email: undefined } });
+
+    const response = await get(app, "/me", token);
 
     expect(response.statusCode).toBe(401);
   });
@@ -172,7 +145,7 @@ describe("AccessTokenGuard with the JWKS URL", () => {
     jwksServer = createServer((_request, response) => {
       jwksRequests += 1;
       response.setHeader("Content-Type", "application/json");
-      response.end(JSON.stringify(jwks));
+      response.end(JSON.stringify(key.jwks));
     });
     await new Promise<void>((resolve) => {
       jwksServer.listen(0, "127.0.0.1", resolve);
@@ -197,25 +170,27 @@ describe("AccessTokenGuard with the JWKS URL", () => {
   }
 
   it("downloads the keys once and reuses them", async () => {
-    app = await createApp(
-      NestAuthModule.forRoot({ issuer: ISSUER, jwks: jwksUrl() }),
+    app = await createTestApp(
+      NestAuthModule.forRoot({ issuer: TEST_ISSUER, jwks: jwksUrl() }),
+      [MeController],
     );
 
-    const first = await getMe(app, await signToken());
-    const second = await getMe(app, await signToken());
+    const first = await get(app, "/me", await key.signToken());
+    const second = await get(app, "/me", await key.signToken());
 
     expect([first.statusCode, second.statusCode]).toEqual([200, 200]);
     expect(jwksRequests).toBe(1);
   });
 
   it("takes its options from a factory with forRootAsync", async () => {
-    app = await createApp(
+    app = await createTestApp(
       NestAuthModule.forRootAsync({
-        useFactory: () => ({ issuer: ISSUER, jwks: jwksUrl() }),
+        useFactory: () => ({ issuer: TEST_ISSUER, jwks: jwksUrl() }),
       }),
+      [MeController],
     );
 
-    const response = await getMe(app, await signToken());
+    const response = await get(app, "/me", await key.signToken());
 
     expect(response.statusCode).toBe(200);
   });
